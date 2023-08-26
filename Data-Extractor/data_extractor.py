@@ -6,11 +6,12 @@ from datetime import datetime
 
 import boto3
 import pymongo
-import pytz
+# import pytz
+import pendulum
 from botocore.exceptions import ClientError
 
 
-class dataExtractor:
+class DataExtractor:
     def __init__(self, mongo_uri, db_name, collection_name):
         self.mongo_uri = mongo_uri
         self.db_name = db_name
@@ -43,14 +44,6 @@ class dataExtractor:
         with open(file_name, 'wb') as csv_file:
             csv_file.write(data)
 
-    # def insert_data_mongo(self, documents):
-    #     self.collection.insert_many(documents)
-    #
-    # def print_collection(self):
-    #     print(self.collection.count_documents({}))
-    #     for doc in self.collection.find().limit(5):
-    #         print(doc)
-
 
 def main():
     with open('config.json', 'r') as config_file:
@@ -68,17 +61,19 @@ def main():
     bucket_name = 'rentsmart-inbound'
 
     # Create an instance of the dataExtractor class
-    extractor = dataExtractor(mongo_uri, db_name, collection_name)
+    extractor = DataExtractor(mongo_uri, db_name, collection_name)
     extractor.url = url  # Set the URL
     response_dict = extractor.fetch_data()
-    time_string = response_dict['result']['resources'][0]['last_modified']
-    est_tz = pytz.timezone('US/Eastern')
-    last_modified_time = est_tz.localize(datetime.strptime(time_string, "%Y-%m-%dT%H:%M:%S.%f"))
-    current_time_est = datetime.now(est_tz)
+    last_modified_time_string = response_dict['result']['resources'][0]['last_modified']
+    # est_tz = pytz.timezone('US/Eastern')
+    # last_modified_time = est_tz.localize(datetime.strptime(time_string, "%Y-%m-%dT%H:%M:%S.%f"))
+    last_modified_time = pendulum.parse(last_modified_time_string, tz='US/Eastern')
+    current_time_est = pendulum.now('US/Eastern')
     # Calculate the time difference
-    time_difference = current_time_est - last_modified_time
+    # time_difference = current_time_est - last_modified_time
+    time_difference = current_time_est.diff(last_modified_time).in_hours()
     # Check if the time difference is less than 24 hours
-    if time_difference.total_seconds() < 24 * 60 * 60:
+    if time_difference < 24:
         print("The time difference is less than 24 hours.")
         # Get the data source URL
         data_source_url = response_dict['result']['resources'][0]['url']
